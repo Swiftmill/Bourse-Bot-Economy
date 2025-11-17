@@ -1,0 +1,126 @@
+// Prisma schema for Bourse Bot Economy
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                 String            @id
+  username           String
+  discriminator      String
+  balance            Int               @default(0)
+  bankBalance        Int               @default(0)
+  netWorth           Int               @default(0)
+  level              Int               @default(1)
+  xp                 Int               @default(0)
+  reputation         Int               @default(0)
+  inventory          Json              @default("[]")
+  totalWon           Int               @default(0)
+  totalLost          Int               @default(0)
+  totalTrades        Int               @default(0)
+  totalLotteryTickets Int              @default(0)
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  portfolios         UserPortfolio[]
+  lotteryTickets     LotteryTicket[]
+  cooldowns          UserCooldown[]
+}
+
+model GuildSettings {
+  guildId          String   @id
+  economyEnabled   Boolean  @default(true)
+  lotteryEnabled   Boolean  @default(true)
+  stocksEnabled    Boolean  @default(true)
+  logChannelId     String?
+  lotteryChannelId String?
+  staffRoleId      String?
+  currencyName     String   @default("Credits")
+  currencySymbol   String   @default("₵")
+  baseDailyReward  Int      @default(500)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+model Stock {
+  symbol       String        @id
+  name         String
+  currentPrice Float         @default(100)
+  volatility   Float         @default(0.05)
+  lastUpdateAt DateTime      @default(now())
+  history      StockHistory[]
+  portfolios   UserPortfolio[]
+}
+
+model StockHistory {
+  id          Int      @id @default(autoincrement())
+  stockSymbol String
+  timestamp   DateTime @default(now())
+  price       Float
+
+  stock Stock @relation(fields: [stockSymbol], references: [symbol], onDelete: Cascade)
+}
+
+model UserPortfolio {
+  id           Int     @id @default(autoincrement())
+  userId       String
+  stockSymbol  String
+  quantity     Float   @default(0)
+  avgBuyPrice  Float   @default(0)
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stock Stock @relation(fields: [stockSymbol], references: [symbol], onDelete: Cascade)
+
+  @@unique([userId, stockSymbol])
+}
+
+model LotteryRound {
+  id         Int              @id @default(autoincrement())
+  status     LotteryStatus    @default(OPEN)
+  startedAt  DateTime         @default(now())
+  endsAt     DateTime
+  totalPool  Int              @default(0)
+  tickets    LotteryTicket[]
+}
+
+model LotteryTicket {
+  id        Int      @id @default(autoincrement())
+  roundId   Int
+  userId    String
+  count     Int      @default(1)
+  createdAt DateTime @default(now())
+
+  round LotteryRound @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  user  User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model LogEntry {
+  id        Int      @id @default(autoincrement())
+  guildId   String?
+  userId    String?
+  action    String
+  details   Json?
+  createdAt DateTime @default(now())
+}
+
+model UserCooldown {
+  id        Int      @id @default(autoincrement())
+  userId    String
+  command   String
+  expiresAt DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, command])
+}
+
+enum LotteryStatus {
+  OPEN
+  CLOSED
+  DRAWN
+}
